@@ -7,7 +7,7 @@ import * as Tone from "tone";
 import { cn } from "@/lib/utils";
 import { Button } from "./ui/button";
 
-type SeqencerMode = "select" | "write";
+type SequencerMode = "select" | "write";
 
 type Instrument = {
   name: string;
@@ -41,7 +41,7 @@ type SequencerStep = {
 
 type Sequencer = SequencerStep[];
 
-const TOTAL_STEPS = 8;
+const TOTAL_STEPS = 16;
 
 const createEmptySequence = (length: number): boolean[] => {
   return Array.from({ length }).map(() => false);
@@ -115,8 +115,8 @@ const initialSequencer: SequencerStep[] = [
 ];
 
 export default function Sequencer() {
-  const [sequencerMode, setSequencerMode] = useState<SeqencerMode>("select");
-  const [sequencer, setSequencer] = useState<Sequencer>(initialSequencer);
+  const [sequencerMode, setSequencerMode] = useState<SequencerMode>("select");
+  const [sequencer, setSequencer] = useState<SequencerStep[]>(initialSequencer);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedInstrument, setSelectedInstrument] = useState(0);
@@ -133,6 +133,10 @@ export default function Sequencer() {
   const stopPlaying = useCallback(() => {
     setIsPlaying(false);
     setCurrentStep(0);
+  }, []);
+
+  const toggleSequencerMode = useCallback(() => {
+    setSequencerMode((prev) => (prev === "select" ? "write" : "select"));
   }, []);
 
   const handleIsPlayingToggle = useCallback(() => {
@@ -194,31 +198,86 @@ export default function Sequencer() {
   return (
     <div>
       <Button onClick={handleIsPlayingToggle}>{isPlaying}</Button>
+      <Button onClick={toggleSequencerMode}>
+        {sequencerMode === "select" ? "select" : "write"}
+      </Button>
 
       <ol className="rounded-2xl overflow-hidden grid grid-cols-4 gap-px bg-black">
-        {sequencer.map((sequencerStep, sequencerStepIndex) => {
-          const isActive = sequencerStepIndex === currentStep && isPlaying;
-
+        {sequencer.map((step, stepIndex) => {
           return (
-            <li
-              key={sequencerStepIndex}
-              className="bg-gray-300 aspect-square size-full flex items-center justify-center"
-            >
-              <Button
-                onClick={() => {
-                  samples[sequencerStepIndex].start();
-                }}
-                className={cn(
-                  "rounded-full aspect-square size-3/4",
-                  isActive && "text-red-500",
-                )}
-              >
-                {sequencerStep.instrument.name}
-              </Button>
-            </li>
+            <SequenceStep
+              key={stepIndex}
+              stepIndex={stepIndex}
+              sequencer={sequencer}
+              sequencerMode={sequencerMode}
+              instrument={step.instrument}
+              selectedInstrument={selectedInstrument}
+              sequence={step.sequence}
+              currentStep={currentStep}
+              handleSelect={() => {
+                setSelectedInstrument(stepIndex);
+                samples[stepIndex].start();
+              }}
+              handleWrite={() =>
+                toggleIntrumentSequenceStep(selectedInstrument, stepIndex)
+              }
+            />
           );
         })}
       </ol>
     </div>
   );
 }
+
+type SequenceStepProps = {
+  sequencer: Sequencer;
+  stepIndex: number;
+  sequencerMode: SequencerMode;
+  currentStep: number;
+  selectedInstrument: number;
+  instrument: Instrument;
+  sequence: boolean[];
+  handleSelect: () => void;
+  handleWrite: () => void;
+};
+
+const SequenceStep = ({
+  sequencer,
+  sequencerMode,
+  currentStep,
+  selectedInstrument,
+  stepIndex,
+  instrument,
+  sequence,
+  handleSelect,
+  handleWrite,
+}: SequenceStepProps) => {
+  const isToggled = sequencer[selectedInstrument].sequence[stepIndex];
+
+  return (
+    <li className="relative bg-gray-300 aspect-square size-full flex items-center justify-center">
+      {sequencerMode === "select" && (
+        <Button
+          onClick={handleSelect}
+          className={cn("rounded-full aspect-square size-3/4")}
+        >
+          {instrument.name}
+        </Button>
+      )}
+
+      {sequencerMode === "write" && (
+        <Button
+          onClick={handleWrite}
+          className={cn(
+            "rounded-full aspect-square size-3/4",
+            isToggled && "bg-green-500",
+          )}
+        >
+          {instrument.name}
+        </Button>
+      )}
+
+      <p className="absolute bottom-1 right-1">{stepIndex}</p>
+    </li>
+  );
+};
